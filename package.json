@@ -19,7 +19,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
     "fp-ts": "^2.13.1",
     "node-fetch": "^3.3.0",
