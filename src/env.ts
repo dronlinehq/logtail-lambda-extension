@@ -19,6 +19,7 @@ const envSchema = z.object({
   RECEIVER_PORT: envNumber.default('4243'), // HTTP server receiving port
   LOGTAIL_HTTP_API_URL: z.string().url().default('https://in.logtail.com/'), // Logtail HTTP API ingestion URL
   LOGTAIL_TOKEN: z.string(), // Logtail token, obtain yours via the sources UI
+  ENABLE_LOG_LEVEL_DETECTION: z.string().default('true'), // Enable log level detection for ERROR/WARN. Set to 'false' to disable.
 });
 
 export type EnvironmentVars = z.infer<typeof envSchema>;

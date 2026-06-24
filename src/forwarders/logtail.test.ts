@@ -18,7 +18,7 @@ describe('test logtail log forwarding', () => {
     record: '[INFO] Hello world, I am a function!',
   };
 
-  test('forwarder should empty logs queue on successful POST', async () => {
+  test('forwarder should empty logs queue on successful POST with level detection enabled', async () => {
     fetchMock.mockIf((request: Request) => request.url === ingestionUrl, JSON.stringify({ message: 'ok' }), {
       status: 200,
     });
@@ -27,7 +27,7 @@ describe('test logtail log forwarding', () => {
       logsQueue: [log, log, log],
     };
 
-    const result = await logtailLogForwarder(token, ingestionUrl, listener)();
+    const result = await logtailLogForwarder(token, ingestionUrl, listener, true)();
 
     expect(E.left(result)).toBeTruthy();
 
@@ -36,9 +36,9 @@ describe('test logtail log forwarding', () => {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     expect(fetchMock.mock.calls[0]?.[1]?.body).toEqual(
       JSON.stringify([
-        { dt: new Date('2022-10-12T00:03:50.000Z'), message: '[INFO] Hello world, I am a function!' },
-        { dt: new Date('2022-10-12T00:03:50.000Z'), message: '[INFO] Hello world, I am a function!' },
-        { dt: new Date('2022-10-12T00:03:50.000Z'), message: '[INFO] Hello world, I am a function!' },
+        { dt: new Date('2022-10-12T00:03:50.000Z'), message: '[INFO] Hello world, I am a function!', level: 'info' },
+        { dt: new Date('2022-10-12T00:03:50.000Z'), message: '[INFO] Hello world, I am a function!', level: 'info' },
+        { dt: new Date('2022-10-12T00:03:50.000Z'), message: '[INFO] Hello world, I am a function!', level: 'info' },
       ]),
     );
     expect(listener.logsQueue.length).toBe(0);
@@ -53,7 +53,7 @@ describe('test logtail log forwarding', () => {
       logsQueue: [log, log, log],
     };
 
-    const result = await logtailLogForwarder(token, ingestionUrl, listener)();
+    const result = await logtailLogForwarder(token, ingestionUrl, listener, true)();
 
     expect(E.left(result)).toBeTruthy();
 
@@ -64,12 +64,134 @@ describe('test logtail log forwarding', () => {
       fetchMock.mock.calls[0]?.[1]?.body,
     ).toEqual(
       JSON.stringify([
-        { dt: new Date('2022-10-12T00:03:50.000Z'), message: '[INFO] Hello world, I am a function!' },
-        { dt: new Date('2022-10-12T00:03:50.000Z'), message: '[INFO] Hello world, I am a function!' },
-        { dt: new Date('2022-10-12T00:03:50.000Z'), message: '[INFO] Hello world, I am a function!' },
+        { dt: new Date('2022-10-12T00:03:50.000Z'), message: '[INFO] Hello world, I am a function!', level: 'info' },
+        { dt: new Date('2022-10-12T00:03:50.000Z'), message: '[INFO] Hello world, I am a function!', level: 'info' },
+        { dt: new Date('2022-10-12T00:03:50.000Z'), message: '[INFO] Hello world, I am a function!', level: 'info' },
       ]),
     );
     expect(listener.logsQueue.length).toBe(3);
+  });
+
+  test('forwarder should detect ERROR level in plain text logs', async () => {
+    fetchMock.mockIf((request: Request) => request.url === ingestionUrl, JSON.stringify({ message: 'ok' }), {
+      status: 200,
+    });
+
+    const errorLog: FunctionLogEvent = {
+      type: 'function',
+      time: new Date('2022-10-12T00:03:50.000Z'),
+      record: '[ERROR] Model failed to build',
+    };
+
+    const listener: { logsQueue: FunctionLogEvent[] } = {
+      logsQueue: [errorLog],
+    };
+
+    const result = await logtailLogForwarder(token, ingestionUrl, listener, true)();
+
+    expect(E.left(result)).toBeTruthy();
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    const body = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string);
+    expect(body[0]?.level).toBe('error');
+    expect(listener.logsQueue.length).toBe(0);
+  });
+
+  test('forwarder should detect WARN level in plain text logs', async () => {
+    fetchMock.mockIf((request: Request) => request.url === ingestionUrl, JSON.stringify({ message: 'ok' }), {
+      status: 200,
+    });
+
+    const warnLog: FunctionLogEvent = {
+      type: 'function',
+      time: new Date('2022-10-12T00:03:50.000Z'),
+      record: '[WARN] Missing configuration',
+    };
+
+    const listener: { logsQueue: FunctionLogEvent[] } = {
+      logsQueue: [warnLog],
+    };
+
+    const result = await logtailLogForwarder(token, ingestionUrl, listener, true)();
+
+    expect(E.left(result)).toBeTruthy();
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    const body = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string);
+    expect(body[0]?.level).toBe('warn');
+    expect(listener.logsQueue.length).toBe(0);
+  });
+
+  test('forwarder should strip ANSI codes when level detection is enabled', async () => {
+    fetchMock.mockIf((request: Request) => request.url === ingestionUrl, JSON.stringify({ message: 'ok' }), {
+      status: 200,
+    });
+
+    const ansiLog: FunctionLogEvent = {
+      type: 'function',
+      time: new Date('2022-10-12T00:03:50.000Z'),
+      record: '\x1B[31mERROR\x1B[0m creating sql view model',
+    };
+
+    const listener: { logsQueue: FunctionLogEvent[] } = {
+      logsQueue: [ansiLog],
+    };
+
+    const result = await logtailLogForwarder(token, ingestionUrl, listener, true)();
+
+    expect(E.left(result)).toBeTruthy();
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    const body = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string);
+    expect(body[0]?.level).toBe('error');
+    expect(body[0]?.message).toBe('ERROR creating sql view model');
+    expect(listener.logsQueue.length).toBe(0);
+  });
+
+  test('forwarder should not modify logs when level detection is disabled', async () => {
+    fetchMock.mockIf((request: Request) => request.url === ingestionUrl, JSON.stringify({ message: 'ok' }), {
+      status: 200,
+    });
+
+    const errorLog: FunctionLogEvent = {
+      type: 'function',
+      time: new Date('2022-10-12T00:03:50.000Z'),
+      record: '[ERROR] Model failed',
+    };
+
+    const listener: { logsQueue: FunctionLogEvent[] } = {
+      logsQueue: [errorLog],
+    };
+
+    const result = await logtailLogForwarder(token, ingestionUrl, listener, false)();
+
+    expect(E.left(result)).toBeTruthy();
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    const body = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string);
+    expect(body[0]?.level).toBe('info');
+    expect(body[0]?.message).toBe('[ERROR] Model failed');
+    expect(listener.logsQueue.length).toBe(0);
+  });
+
+  test('forwarder should prioritize ERROR over WARN in level detection', async () => {
+    fetchMock.mockIf((request: Request) => request.url === ingestionUrl, JSON.stringify({ message: 'ok' }), {
+      status: 200,
+    });
+
+    const summaryLog: FunctionLogEvent = {
+      type: 'function',
+      time: new Date('2022-10-12T00:03:50.000Z'),
+      record: 'Done. PASS=3 WARN=0 ERROR=16',
+    };
+
+    const listener: { logsQueue: FunctionLogEvent[] } = {
+      logsQueue: [summaryLog],
+    };
+
+    const result = await logtailLogForwarder(token, ingestionUrl, listener, true)();
+
+    expect(E.left(result)).toBeTruthy();
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    const body = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string);
+    expect(body[0]?.level).toBe('error');
+    expect(listener.logsQueue.length).toBe(0);
   });
 });
 

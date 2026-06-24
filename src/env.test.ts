@@ -17,6 +17,7 @@ describe('test parseEnvironment`', () => {
         AWS_LAMBDA_RUNTIME_API: 'http://127.0.0.1:9001/',
         AWS_LAMBDA_RUNTIME_EXTENSION_API_VERSION: '2020-01-01',
         AWS_LAMBDA_RUNTIME_TELEMETRY_API_VERSION: '2022-07-01',
+        ENABLE_LOG_LEVEL_DETECTION: 'true',
         EXTENSION_NAME: 'logtail-lambda-extension',
         LOGTAIL_HTTP_API_URL: 'https://in.logtail.com/',
         LOGTAIL_TOKEN: 'test_token',
