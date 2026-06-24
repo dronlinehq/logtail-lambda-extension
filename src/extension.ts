@@ -52,8 +52,8 @@ export const createExtension = (
           (body) => subscribeTelemetry(telemetryBaseUrl, extensionId, body),
         ),
     ),
-    TE.bind('forwardLogs', ({ LOGTAIL_TOKEN, LOGTAIL_HTTP_API_URL, listener }) =>
-      TE.of(logtailLogForwarder(LOGTAIL_TOKEN, LOGTAIL_HTTP_API_URL, listener)),
+    TE.bind('forwardLogs', ({ LOGTAIL_TOKEN, LOGTAIL_HTTP_API_URL, listener, ENABLE_LOG_LEVEL_DETECTION }) =>
+      TE.of(logtailLogForwarder(LOGTAIL_TOKEN, LOGTAIL_HTTP_API_URL, listener, ENABLE_LOG_LEVEL_DETECTION === 'true')),
     ),
     TE.map(({ EXTENSION_NAME, extensionId, extensionBaseUrl, forwardLogs, listener }) =>
       F.pipe(

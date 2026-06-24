@@ -2,6 +2,7 @@ import fetch from 'node-fetch';
 import { FunctionLogEvent } from '~/aws/events';
 import { function as F, array as A, either as E } from 'fp-ts';
 import { z } from 'zod';
+import { detectLogLevel, stripAnsiCodes } from '~/logLevelDetector';
 
 // @see https://awslabs.github.io/aws-lambda-powertools-typescript/latest/core/logger/#standard-structured-keys
 export const powertoolsLogSchema = z
@@ -17,6 +18,13 @@ export const powertoolsLogSchema = z
   .passthrough();
 
 export type PowertoolsLogRecord = z.infer<typeof powertoolsLogSchema>;
+
+type LogtailPayload = {
+  dt: Date;
+  message: string;
+  level?: string;
+  data?: Record<string, unknown>;
+};
 
 export const parseMessageWithPowertoolsLogFormat = (message: string): E.Either<Error, PowertoolsLogRecord> =>
   F.pipe(
@@ -36,7 +44,8 @@ export const parseMessageWithPowertoolsLogFormat = (message: string): E.Either<E
   );
 
 export const logtailLogForwarder =
-  (token: string, ingestionUrl: string, listener: { logsQueue: FunctionLogEvent[] }) => (): Promise<void> => {
+  (token: string, ingestionUrl: string, listener: { logsQueue: FunctionLogEvent[] }, enableLogLevelDetection = true) =>
+  (): Promise<void> => {
     const logs = listener.logsQueue.splice(0);
 
     if (logs.length === 0) {
@@ -53,15 +62,36 @@ export const logtailLogForwarder =
               log.record,
               parseMessageWithPowertoolsLogFormat,
               E.fold(
-                () => ({
-                  dt: log.time,
-                  message: log.record,
-                }),
-                ({ message, ...data }) => ({
-                  dt: log.time,
-                  message,
-                  data,
-                }),
+                (): LogtailPayload => {
+                  if (!enableLogLevelDetection) {
+                    return {
+                      dt: log.time,
+                      message: log.record,
+                    };
+                  }
+
+                  const cleanedMessage = stripAnsiCodes(log.record);
+                  return {
+                    dt: log.time,
+                    message: cleanedMessage,
+                    level: detectLogLevel(cleanedMessage, true),
+                  };
+                },
+                ({ message, level: powertoolsLevel, ...data }): LogtailPayload => {
+                  const payload: LogtailPayload = {
+                    dt: log.time,
+                    message,
+                    data,
+                  };
+
+                  if (powertoolsLevel) {
+                    payload.level = powertoolsLevel;
+                  } else if (enableLogLevelDetection) {
+                    payload.level = detectLogLevel(message);
+                  }
+
+                  return payload;
+                },
               ),
             ),
           ),
