@@ -9,6 +9,7 @@
   },
   "scripts": {
     "build": "rimraf ./dist && pnpm test && ts-node ./scripts/build.ts",
+    "deploy": "pnpm run build && aws lambda publish-layer-version --layer-name \"logtail-lambda-extension\" --region eu-west-2 --zip-file \"fileb://./dist/extension.zip\" --compatible-runtimes nodejs20.x --compatible-architectures x86_64 arm64",
     "test": "jest",
     "format": "prettier --ignore-path=.gitignore --check .",
     "format:fix": "prettier --ignore-path=.gitignore --write .",

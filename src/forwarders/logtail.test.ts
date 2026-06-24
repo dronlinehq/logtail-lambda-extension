@@ -1,5 +1,4 @@
 import fetchMock from 'jest-fetch-mock';
-import { Request } from 'node-fetch';
 import { either as E } from 'fp-ts';
 import { logtailLogForwarder, parseMessageWithPowertoolsLogFormat } from '~/forwarders/logtail';
 import { FunctionLogEvent } from '~/aws/events';
@@ -27,7 +26,7 @@ describe('test logtail log forwarding', () => {
   };
 
   test('forwarder should empty logs queue on successful POST with level detection enabled', async () => {
-    fetchMock.mockIf((request: Request) => request.url === ingestionUrl, JSON.stringify({ message: 'ok' }), {
+    fetchMock.mockIf((request) => request.url === ingestionUrl, JSON.stringify({ message: 'ok' }), {
       status: 200,
     });
 
@@ -53,7 +52,7 @@ describe('test logtail log forwarding', () => {
   });
 
   test('forwarder should re-queue logs on failure', async () => {
-    fetchMock.mockIf((request: Request) => request.url === ingestionUrl, JSON.stringify({ message: 'bad' }), {
+    fetchMock.mockIf((request) => request.url === ingestionUrl, JSON.stringify({ message: 'bad' }), {
       status: 500,
     });
 
@@ -81,7 +80,7 @@ describe('test logtail log forwarding', () => {
   });
 
   test('forwarder should detect ERROR level in plain text logs', async () => {
-    fetchMock.mockIf((request: Request) => request.url === ingestionUrl, JSON.stringify({ message: 'ok' }), {
+    fetchMock.mockIf((request) => request.url === ingestionUrl, JSON.stringify({ message: 'ok' }), {
       status: 200,
     });
 
@@ -104,7 +103,7 @@ describe('test logtail log forwarding', () => {
   });
 
   test('forwarder should detect WARN level in plain text logs', async () => {
-    fetchMock.mockIf((request: Request) => request.url === ingestionUrl, JSON.stringify({ message: 'ok' }), {
+    fetchMock.mockIf((request) => request.url === ingestionUrl, JSON.stringify({ message: 'ok' }), {
       status: 200,
     });
 
@@ -127,7 +126,7 @@ describe('test logtail log forwarding', () => {
   });
 
   test('forwarder should detect WARNING level in dbt-style plain text logs', async () => {
-    fetchMock.mockIf((request: Request) => request.url === ingestionUrl, JSON.stringify({ message: 'ok' }), {
+    fetchMock.mockIf((request) => request.url === ingestionUrl, JSON.stringify({ message: 'ok' }), {
       status: 200,
     });
 
@@ -150,7 +149,7 @@ describe('test logtail log forwarding', () => {
   });
 
   test('forwarder should strip ANSI codes when level detection is enabled', async () => {
-    fetchMock.mockIf((request: Request) => request.url === ingestionUrl, JSON.stringify({ message: 'ok' }), {
+    fetchMock.mockIf((request) => request.url === ingestionUrl, JSON.stringify({ message: 'ok' }), {
       status: 200,
     });
 
@@ -174,7 +173,7 @@ describe('test logtail log forwarding', () => {
   });
 
   test('forwarder should not modify logs when level detection is disabled', async () => {
-    fetchMock.mockIf((request: Request) => request.url === ingestionUrl, JSON.stringify({ message: 'ok' }), {
+    fetchMock.mockIf((request) => request.url === ingestionUrl, JSON.stringify({ message: 'ok' }), {
       status: 200,
     });
 
@@ -198,7 +197,7 @@ describe('test logtail log forwarding', () => {
   });
 
   test('forwarder should treat dbt summary lines as info', async () => {
-    fetchMock.mockIf((request: Request) => request.url === ingestionUrl, JSON.stringify({ message: 'ok' }), {
+    fetchMock.mockIf((request) => request.url === ingestionUrl, JSON.stringify({ message: 'ok' }), {
       status: 200,
     });
 
