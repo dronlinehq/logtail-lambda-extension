@@ -1,4 +1,4 @@
-import { stripAnsiCodes, detectLogLevel, LogLevel } from '~/logLevelDetector';
+import { stripAnsiCodes, detectLogLevel } from '~/logLevelDetector';
 
 describe('stripAnsiCodes', () => {
   test('should remove ANSI escape sequences', () => {
@@ -43,9 +43,17 @@ describe('detectLogLevel', () => {
     expect(detectLogLevel('Warn: this is a warning')).toBe('warn');
   });
 
+  test('should detect WARNING level from dbt-style logs', () => {
+    expect(detectLogLevel('Warning in test my_model')).toBe('warn');
+    expect(detectLogLevel('1 of 5 WARNING table missing')).toBe('warn');
+  });
+
   test('should prioritize ERROR over WARN', () => {
-    expect(detectLogLevel('Done. PASS=3 WARN=0 ERROR=16')).toBe('error');
     expect(detectLogLevel('ERROR in WARN section')).toBe('error');
+  });
+
+  test('should treat dbt summary lines as info', () => {
+    expect(detectLogLevel('Done. PASS=3 WARN=0 ERROR=16')).toBe('info');
   });
 
   test('should default to info for other messages', () => {

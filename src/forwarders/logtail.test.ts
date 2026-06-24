@@ -4,6 +4,14 @@ import { either as E } from 'fp-ts';
 import { logtailLogForwarder, parseMessageWithPowertoolsLogFormat } from '~/forwarders/logtail';
 import { FunctionLogEvent } from '~/aws/events';
 
+type PostedLog = { level?: string; message?: string };
+
+const parsePostedBody = (callIndex = 0): PostedLog[] => {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+  const body = fetchMock.mock.calls[callIndex]?.[1]?.body as string;
+  return JSON.parse(body) as PostedLog[];
+};
+
 describe('test logtail log forwarding', () => {
   beforeEach(() => {
     fetchMock.resetMocks();
@@ -90,8 +98,7 @@ describe('test logtail log forwarding', () => {
     const result = await logtailLogForwarder(token, ingestionUrl, listener, true)();
 
     expect(E.left(result)).toBeTruthy();
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    const body = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string);
+    const body = parsePostedBody();
     expect(body[0]?.level).toBe('error');
     expect(listener.logsQueue.length).toBe(0);
   });
@@ -114,8 +121,30 @@ describe('test logtail log forwarding', () => {
     const result = await logtailLogForwarder(token, ingestionUrl, listener, true)();
 
     expect(E.left(result)).toBeTruthy();
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    const body = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string);
+    const body = parsePostedBody();
+    expect(body[0]?.level).toBe('warn');
+    expect(listener.logsQueue.length).toBe(0);
+  });
+
+  test('forwarder should detect WARNING level in dbt-style plain text logs', async () => {
+    fetchMock.mockIf((request: Request) => request.url === ingestionUrl, JSON.stringify({ message: 'ok' }), {
+      status: 200,
+    });
+
+    const warnLog: FunctionLogEvent = {
+      type: 'function',
+      time: new Date('2022-10-12T00:03:50.000Z'),
+      record: '1 of 5 WARNING table missing',
+    };
+
+    const listener: { logsQueue: FunctionLogEvent[] } = {
+      logsQueue: [warnLog],
+    };
+
+    const result = await logtailLogForwarder(token, ingestionUrl, listener, true)();
+
+    expect(E.left(result)).toBeTruthy();
+    const body = parsePostedBody();
     expect(body[0]?.level).toBe('warn');
     expect(listener.logsQueue.length).toBe(0);
   });
@@ -138,8 +167,7 @@ describe('test logtail log forwarding', () => {
     const result = await logtailLogForwarder(token, ingestionUrl, listener, true)();
 
     expect(E.left(result)).toBeTruthy();
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    const body = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string);
+    const body = parsePostedBody();
     expect(body[0]?.level).toBe('error');
     expect(body[0]?.message).toBe('ERROR creating sql view model');
     expect(listener.logsQueue.length).toBe(0);
@@ -163,14 +191,13 @@ describe('test logtail log forwarding', () => {
     const result = await logtailLogForwarder(token, ingestionUrl, listener, false)();
 
     expect(E.left(result)).toBeTruthy();
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    const body = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string);
-    expect(body[0]?.level).toBe('info');
+    const body = parsePostedBody();
+    expect(body[0]?.level).toBeUndefined();
     expect(body[0]?.message).toBe('[ERROR] Model failed');
     expect(listener.logsQueue.length).toBe(0);
   });
 
-  test('forwarder should prioritize ERROR over WARN in level detection', async () => {
+  test('forwarder should treat dbt summary lines as info', async () => {
     fetchMock.mockIf((request: Request) => request.url === ingestionUrl, JSON.stringify({ message: 'ok' }), {
       status: 200,
     });
@@ -188,9 +215,8 @@ describe('test logtail log forwarding', () => {
     const result = await logtailLogForwarder(token, ingestionUrl, listener, true)();
 
     expect(E.left(result)).toBeTruthy();
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    const body = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string);
-    expect(body[0]?.level).toBe('error');
+    const body = parsePostedBody();
+    expect(body[0]?.level).toBe('info');
     expect(listener.logsQueue.length).toBe(0);
   });
 });

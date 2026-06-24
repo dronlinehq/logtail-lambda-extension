@@ -19,6 +19,13 @@ export const powertoolsLogSchema = z
 
 export type PowertoolsLogRecord = z.infer<typeof powertoolsLogSchema>;
 
+type LogtailPayload = {
+  dt: Date;
+  message: string;
+  level?: string;
+  data?: Record<string, unknown>;
+};
+
 export const parseMessageWithPowertoolsLogFormat = (message: string): E.Either<Error, PowertoolsLogRecord> =>
   F.pipe(
     E.tryCatch(
@@ -37,12 +44,8 @@ export const parseMessageWithPowertoolsLogFormat = (message: string): E.Either<E
   );
 
 export const logtailLogForwarder =
-  (
-    token: string,
-    ingestionUrl: string,
-    listener: { logsQueue: FunctionLogEvent[] },
-    enableLogLevelDetection: boolean = true,
-  ) => (): Promise<void> => {
+  (token: string, ingestionUrl: string, listener: { logsQueue: FunctionLogEvent[] }, enableLogLevelDetection = true) =>
+  (): Promise<void> => {
     const logs = listener.logsQueue.splice(0);
 
     if (logs.length === 0) {
@@ -59,23 +62,35 @@ export const logtailLogForwarder =
               log.record,
               parseMessageWithPowertoolsLogFormat,
               E.fold(
-                () => {
-                  const cleanedMessage = enableLogLevelDetection ? stripAnsiCodes(log.record) : log.record;
-                  const level = enableLogLevelDetection ? detectLogLevel(log.record) : 'info';
+                (): LogtailPayload => {
+                  if (!enableLogLevelDetection) {
+                    return {
+                      dt: log.time,
+                      message: log.record,
+                    };
+                  }
+
+                  const cleanedMessage = stripAnsiCodes(log.record);
                   return {
                     dt: log.time,
                     message: cleanedMessage,
-                    level: level as string,
+                    level: detectLogLevel(cleanedMessage, true),
                   };
                 },
-                ({ message, level: powertoolsLevel, ...data }) => {
-                  const detectedLevel = powertoolsLevel || (enableLogLevelDetection ? detectLogLevel(message) : 'info');
-                  return {
+                ({ message, level: powertoolsLevel, ...data }): LogtailPayload => {
+                  const payload: LogtailPayload = {
                     dt: log.time,
                     message,
-                    level: detectedLevel as string,
                     data,
                   };
+
+                  if (powertoolsLevel) {
+                    payload.level = powertoolsLevel;
+                  } else if (enableLogLevelDetection) {
+                    payload.level = detectLogLevel(message);
+                  }
+
+                  return payload;
                 },
               ),
             ),
